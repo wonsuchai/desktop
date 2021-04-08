@@ -94,7 +94,7 @@ GitHub trademarks. GitHub's logos include, for instance, the stylized
 Invertocat designs that include "logo" in the file title in the following
 folder: [logos](app/static/logos).
 
-GitHub® and its stylized versions and the Invertocat mark are GitHub's
+Test C and its stylized versions and the Invertocat mark are GitHub's
 Trademarks or registered Trademarks. When using GitHub's logos, be sure to
 follow the GitHub [logo guidelines](https://github.com/logos).
 Test A

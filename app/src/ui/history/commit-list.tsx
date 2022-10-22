@@ -119,9 +119,8 @@ interface ICommitListProps {
   /** Whether or not commits in this list can be reordered. */
   readonly reorderingEnabled?: boolean
 
-  /** Whether a multi commit operation is in progress (in particular the
-   * conflicts resolution step allows interaction with history) */
-  readonly isMultiCommitOperationInProgress?: boolean
+  /** Whether a cherry pick is progress */
+  readonly isCherryPickInProgress?: boolean
 
   /** Callback to render commit drag element */
   readonly onRenderCommitDragElement?: (
@@ -214,12 +213,10 @@ export class CommitList extends React.Component<ICommitListProps, {}> {
         onAmendCommit={this.props.onAmendCommit}
         onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
         selectedCommits={this.lookupCommits(this.props.selectedSHAs)}
+        isCherryPickInProgress={this.props.isCherryPickInProgress}
         onRenderCommitDragElement={this.onRenderCommitDragElement}
         onRemoveDragElement={this.props.onRemoveCommitDragElement}
         disableSquashing={this.props.disableSquashing}
-        isMultiCommitOperationInProgress={
-          this.props.isMultiCommitOperationInProgress
-        }
       />
     )
   }
@@ -377,14 +374,8 @@ export class CommitList extends React.Component<ICommitListProps, {}> {
   }
 
   public render() {
-    const {
-      commitSHAs,
-      selectedSHAs,
-      shasToHighlight,
-      emptyListMessage,
-      reorderingEnabled,
-      isMultiCommitOperationInProgress,
-    } = this.props
+    const { commitSHAs, selectedSHAs, shasToHighlight, emptyListMessage } =
+      this.props
     if (commitSHAs.length === 0) {
       return (
         <div className="panel blankslate">
@@ -411,10 +402,7 @@ export class CommitList extends React.Component<ICommitListProps, {}> {
           selectionMode="multi"
           onScroll={this.onScroll}
           insertionDragType={
-            reorderingEnabled === true &&
-            isMultiCommitOperationInProgress === false
-              ? DragType.Commit
-              : undefined
+            this.props.reorderingEnabled === true ? DragType.Commit : undefined
           }
           invalidationProps={{
             commits: this.props.commitSHAs,

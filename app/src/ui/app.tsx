@@ -13,6 +13,7 @@ import { assertNever } from '../lib/fatal-error'
 import { shell } from '../lib/app-shell'
 import { updateStore, UpdateStatus } from './lib/update-store'
 import { RetryAction } from '../models/retry-actions'
+import { FetchType } from '../models/fetch'
 import { shouldRenderApplicationMenu } from './lib/features'
 import { matchExistingRepository } from '../lib/repository-matching'
 import { getDotComAPIEndpoint } from '../lib/api'
@@ -92,7 +93,10 @@ import { RepositoryStateCache } from '../lib/stores/repository-state-cache'
 import { PopupType, Popup } from '../models/popup'
 import { OversizedFiles } from './changes/oversized-files-warning'
 import { PushNeedsPullWarning } from './push-needs-pull'
-import { isCurrentBranchForcePush } from '../lib/rebase'
+import {
+  ForcePushBranchState,
+  getCurrentBranchForcePushState,
+} from '../lib/rebase'
 import { Banner, BannerType } from '../models/banner'
 import { StashAndSwitchBranch } from './stash-changes/stash-and-switch-branch-dialog'
 import { OverwriteStash } from './stash-changes/overwrite-stashed-changes-dialog'
@@ -159,6 +163,7 @@ import { UnreachableCommitsDialog } from './history/unreachable-commits-dialog'
 import { OpenPullRequestDialog } from './open-pull-request/open-pull-request-dialog'
 import { sendNonFatalException } from '../lib/helpers/non-fatal-exception'
 import { createCommitURL } from '../lib/commit-url'
+import { InstallingUpdate } from './installing-update/installing-update'
 
 const MinuteInMilliseconds = 1000 * 60
 const HourInMilliseconds = MinuteInMilliseconds * 60
@@ -279,7 +284,14 @@ export class App extends React.Component<IAppProps, IAppState> {
     updateStore.onError(error => {
       log.error(`Error checking for updates`, error)
 
-      this.props.dispatcher.postError(error)
+      // It is possible to obtain an error with no message. This was found to be
+      // the case on a windows instance where there was not space on the hard
+      // drive to download the installer. In this case, we want to override the
+      // error message so the user is not given a blank dialog.
+      const hasErrorMsg = error.message.trim().length > 0
+      this.props.dispatcher.postError(
+        hasErrorMsg ? error : new Error('Checking for updates failed.')
+      )
     })
 
     ipcRenderer.on('launch-timing-stats', (_, stats) => {
@@ -358,6 +370,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.push({ forceWithLease: true })
       case 'pull':
         return this.pull()
+      case 'fetch':
+        return this.fetch()
       case 'show-changes':
         return this.showChanges()
       case 'show-history':
@@ -947,6 +961,15 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
 
     this.props.dispatcher.pull(state.repository)
+  }
+
+  private async fetch() {
+    const state = this.state.selectedState
+    if (state == null || state.type !== SelectionType.Repository) {
+      return
+    }
+
+    this.props.dispatcher.fetch(state.repository, FetchType.UserInitiatedTask)
   }
 
   private showStashedChanges() {
@@ -2298,6 +2321,15 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       }
+      case PopupType.InstallingUpdate: {
+        return (
+          <InstallingUpdate
+            key="installing-update"
+            dispatcher={this.props.dispatcher}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
       default:
         return assertNever(popup, `Unknown popup type: ${popup}`)
     }
@@ -2735,7 +2767,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       remoteName = tip.branch.upstreamRemoteName
     }
 
-    const isForcePush = isCurrentBranchForcePush(branchesState, aheadBehind)
+    const isForcePush =
+      getCurrentBranchForcePushState(branchesState, aheadBehind) ===
+      ForcePushBranchState.Recommended
 
     return (
       <PushPullButton
